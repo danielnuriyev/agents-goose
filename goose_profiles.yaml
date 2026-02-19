@@ -1,0 +1,11 @@
+profiles:
+  bedrock-nova-lite:
+    name: "Bedrock Nova Lite via LiteLLM"
+    description: "AWS Bedrock Nova Lite model proxied through LiteLLM"
+    providers:
+      - name: litellm
+        base_url: "http://localhost:4000/v1"  # LiteLLM proxy endpoint
+        api_key_env: "LITELLM_API_KEY"  # Optional API key for LiteLLM proxy
+        models:
+          - name: bedrock-nova-lite
+            model: bedrock-nova-lite  # This matches the model_name in litellm_config.yaml
