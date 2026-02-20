@@ -2,7 +2,4 @@ model_list:
   - model_name: bedrock-nova-lite
     litellm_params:
       model: bedrock/amazon.nova-lite-v1:0
-      aws_region_name: us-east-1  # Change this to your preferred AWS region
-      # AWS credentials will be read from ~/.aws/credentials or environment variables
-      # aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID  # Optional: will use boto3 default
-      # aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY  # Optional: will use boto3 default
+      aws_region_name: us-east-1
