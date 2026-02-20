@@ -1,4 +1,4 @@
-# Goose + LiteLLM + Bedrock (Simple Setup)
+# Goose + LiteLLM
 
 This folder sets up Goose to use models through a local LiteLLM proxy.
 This is a work in progress. My goal is to automate things that I do routinely.
