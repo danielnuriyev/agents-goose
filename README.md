@@ -1,6 +1,7 @@
 # Goose + LiteLLM + Bedrock (Simple Setup)
 
-This folder sets up Goose to use AWS Bedrock Nova Lite through a local LiteLLM proxy.
+This folder sets up Goose to use models through a local LiteLLM proxy.
+This is a work in progress. My goal is to automate things that I do routinely.
 
 ## What `setup.sh` does
 
