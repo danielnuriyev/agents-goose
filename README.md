@@ -7,6 +7,8 @@ The goal is to call this server from Slack and other applications.
 ## Files
 
 - `setup.sh` - install and configure everything
+- `start_server.sh` - start both LiteLLM proxy and Goose task server
+- `stop_server.sh` - stop both LiteLLM proxy and Goose task server
 - `litellm_config.yaml` - LiteLLM model mapping.
 - `goose_config.yaml` - Local Goose configuration for the task server
 - `goose_server.py` - local HTTP task server
@@ -28,6 +30,33 @@ aws configure
 ```
 
 ## 2) Run services
+
+### Option 1: Automated startup script (recommended)
+
+```bash
+cd agents-goose
+./start_server.sh
+```
+
+This script will automatically:
+- Kill any existing processes on ports 4321 and 8765
+- Activate the virtual environment
+- Start both LiteLLM proxy and Goose task server in the background
+- Display PIDs and stop commands
+
+### Stopping services
+
+```bash
+cd agents-goose
+./stop_server.sh
+```
+
+This script will:
+- Stop both LiteLLM proxy and Goose task server
+- Report success/failure status
+- Handle cases where services are already stopped
+
+### Option 2: Manual startup
 
 Terminal 1 (LiteLLM proxy):
 
