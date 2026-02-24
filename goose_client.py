@@ -6,6 +6,7 @@ Provides a simple interface to submit tasks, check status, and wait for completi
 Communicates with the local Goose task server via HTTP requests.
 
 Key methods:
+- get_models(): Get available models from LiteLLM
 - submit_task(): Submit a new task for execution
 - get_task_status(): Check status of a specific task
 - wait_for_done(): Poll until task reaches terminal state
@@ -20,6 +21,11 @@ from urllib import request
 class GooseTaskClient:
     def __init__(self, base_url: str = "http://127.0.0.1:8765") -> None:
         self.base_url = base_url.rstrip("/")
+
+    def get_models(self) -> list:
+        """Get available models from the Goose task server."""
+        response = self._request_json("GET", "/models")
+        return response.get("models", [])
 
     def submit_task(
         self,

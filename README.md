@@ -65,6 +65,8 @@ It submits the task, waits for completion, and shows the final status and output
 
 ## API
 
+- `GET /health`: Health check endpoint
+- `GET /models`: Get available models from LiteLLM
 - `POST /tasks` with body:
 
 ```json
@@ -74,11 +76,32 @@ It submits the task, waits for completion, and shows the final status and output
 }
 ```
 
-- `GET /tasks/<task_id>` returns task status (`queued`, `running`, `completed`, `failed`) and output.
+- `GET /tasks`: List all tasks
+- `GET /tasks/<task_id>`: Get specific task status (`queued`, `running`, `completed`, `failed`) and output
+
+Example usage with Python client:
+
+```python
+from goose_client import GooseTaskClient
+
+client = GooseTaskClient()
+
+# Get available models
+models = client.get_models()
+print("Available models:", [m["id"] for m in models])
+
+# Submit a task
+response = client.submit_task("Create a hello.py file", model="bedrock-claude-opus-4-6")
+task_id = response["task_id"]
+
+# Wait for completion
+result = client.wait_for_done(task_id)
+print("Task result:", result)
+```
 
 ## Notes
 
-- Goose config is written to `goose_config.yaml` by `setup.sh`.
+- Goose config is managed in `goose_config.yaml` (created manually).
 - The task server uses `goose_config.yaml` as its local configuration, isolated from your global Goose settings.
 - Required keys are uppercase: `GOOSE_PROVIDER`, `GOOSE_MODEL`, `LITELLM_HOST`, `LITELLM_BASE_PATH`.
 - The task server runs Goose with bounded turns/retries to prevent runaway executions.

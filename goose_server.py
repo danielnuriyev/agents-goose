@@ -7,6 +7,8 @@ Tasks are executed asynchronously using the 'goose run --text' command, with sta
 and output collection.
 
 API Endpoints:
+- GET /health: Health check
+- GET /models: Get available models from LiteLLM
 - POST /tasks: Submit a new task with optional working directory
 - GET /tasks: List all tasks
 - GET /tasks/<task_id>: Get specific task status and results
@@ -27,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict
 from urllib.parse import urlparse
+from urllib.request import urlopen, Request
 
 
 TERMINAL_STATUSES = {"completed", "failed"}
@@ -50,6 +53,17 @@ def build_task_prompt(task_text: str) -> str:
         "- After editing, verify by reading the target file(s).\n"
     )
     return f"{task_text.strip()}\n\n{guardrails}"
+
+
+def get_litellm_models() -> list:
+    """Get available models from LiteLLM proxy server."""
+    try:
+        req = Request("http://localhost:4321/v1/models")
+        with urlopen(req) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            return data.get("data", [])
+    except Exception as e:
+        return {"error": f"Failed to fetch models: {str(e)}"}
 
 
 def run_task(task_id: str) -> None:
@@ -155,6 +169,11 @@ class TaskHandler(BaseHTTPRequestHandler):
 
         if path == "/health":
             self._send_json(200, {"status": "ok"})
+            return
+
+        if path == "/models":
+            models = get_litellm_models()
+            self._send_json(200, {"models": models})
             return
 
         if path == "/tasks":
