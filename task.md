@@ -3,7 +3,7 @@ Delete test branch and .task folder.
 Do all the following work in .task folder.
 Log each step in .task/task.log
 Create a branch named test.
-The coding language should be Raku.
+The coding language should be Go.
 If the programming language is not available, you can download, install and configure it locally.
 Do not install and configure it globally.
 Create a function that finds the largest even number in a list.
