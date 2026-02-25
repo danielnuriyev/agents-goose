@@ -47,6 +47,11 @@ This script will automatically:
 - Start both LiteLLM proxy and Goose task server in the background
 - Display PIDs and stop commands
 
+AWS credential behavior:
+- `start_server.sh` uses profile-based AWS auth (`AWS_PROFILE`, default `default`)
+- It clears static `AWS_*KEY*` env vars before launching LiteLLM
+- Use refreshable profile credentials (for example SSO/credential_process) for best no-restart behavior
+
 #### Options:
 - `--restart` (default): Restart services if already running
 - `--no-restart`: Only start services if they're not already running

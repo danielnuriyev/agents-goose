@@ -66,6 +66,13 @@ fi
 echo "Activating virtual environment..."
 source "${SCRIPT_DIR}/.venv/bin/activate"
 
+# Prefer profile-based AWS credential resolution so refreshed creds can be reloaded
+# without relying on static env vars captured at process start.
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+export AWS_SDK_LOAD_CONFIG=1
+export AWS_PROFILE="${AWS_PROFILE:-default}"
+echo "Using AWS profile: ${AWS_PROFILE}"
+
 # Ensure TLS trust store is available for outbound HTTPS calls (e.g., LiteLLM model cost map fetch)
 CERT_PATH="$(python -c 'import certifi; print(certifi.where())' 2>/dev/null || true)"
 if [ -n "${CERT_PATH}" ] && [ -f "${CERT_PATH}" ]; then
