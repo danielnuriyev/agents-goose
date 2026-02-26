@@ -1,6 +1,7 @@
-- check how goose fixes an error
-- complete a coding task, create a PR and post to Slack
-- automate my common tasks such as code review and optimization
-- integrate with Slack for common tasks
-- use catalog and data to build code, sql, charts to answer questions
-- guess data meaning from a sample + column name
+- Add linter and tests
+- Enable it to use slack events
+- Connect to github for PR reviews
+- Connect to the orchestrator for reruns, backfills
+- Connect to the catalog + metadata for building pipes and answering questions
+- Run in a pod
+- Run tasks in pods

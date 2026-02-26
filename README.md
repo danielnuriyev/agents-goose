@@ -12,6 +12,8 @@ Goals:
 - `start_server.sh` - start both LiteLLM proxy and Goose task server
 - `stop_server.sh` - stop both LiteLLM proxy and Goose task server
 - `start_prompt.sh` - interactive prompt for submitting tasks
+- `start_slack.sh` - start Slack middleware server for slash command integration
+- `slack_server.py` - Bottle middleware server bridging Slack to Goose tasks
 - `litellm_config.yaml` - LiteLLM model mapping.
 - `goose_config.yaml` - Local Goose configuration for the task server
 - `goose_task.py` - CLI script to submit tasks and optionally wait for completion
@@ -97,6 +99,73 @@ Available commands:
 - `task filename.md` - Submit a task from a markdown file
 - `help` - Show available commands
 - `quit`/`exit`/`q` - Exit the interactive session
+
+### Slack integration
+
+```bash
+cd agents-goose
+./start_slack.sh
+```
+
+This starts a middleware server that bridges Slack slash commands to Goose tasks.
+The server uses Bottle (a lightweight WSGI micro-framework) for minimal dependencies and fast performance.
+
+#### Setup steps:
+
+1. **Start the Slack server:**
+   ```bash
+   ./start_slack.sh              # Start on port 3000 (default)
+   ./start_slack.sh --port 8080  # Start on custom port
+   ```
+
+2. **Expose the server publicly:**
+   ```bash
+   # Install ngrok from https://ngrok.com/download
+   ngrok http 3000
+   ```
+   Copy the ngrok URL (e.g., `https://abc123.ngrok.io`)
+
+3. **Create a Slack App:**
+   - Go to [https://api.slack.com/apps](https://api.slack.com/apps)
+   - Click "Create New App" → "From scratch"
+   - Name your app (e.g., "Goose Bot") and select your workspace
+
+4. **Add a Slash Command:**
+   - In your Slack app, go to "Slash Commands" → "Create New Command"
+   - Command: `/goose` (or your preferred command name)
+   - Request URL: `https://your-ngrok-url.ngrok.io/slack/command`
+   - Description: "Submit tasks to Goose AI agent"
+   - Usage Hint: `<your task description>`
+
+5. **Install the app to your workspace:**
+   - Go to "OAuth & Permissions" → "Scopes"
+   - Add `commands` scope
+   - Go to "Install App" and install it to your workspace
+
+#### Usage:
+
+In any Slack channel where the app is installed:
+```
+/goose Create a Python function to calculate fibonacci numbers
+/goose Fix the bug in my code: the function returns None instead of the result
+/goose Write a README for my project
+```
+
+The bot will:
+- Immediately acknowledge your command
+- Process the task asynchronously
+- Send the results back to the channel when complete
+
+#### Environment variables:
+
+- `SLACK_SIGNING_SECRET`: For request verification (recommended for production)
+- `GOOSE_SERVER_URL`: URL of goose_server.py (default: `http://localhost:8765`)
+
+#### Troubleshooting:
+
+- Ensure `./start_server.sh` is running first (starts Goose and LiteLLM)
+- Check logs: `tail -f .logs/slack_server.log`
+- Use `lsof -ti:3000 | xargs kill -9` to stop the Slack server
 
 ### Option 2: Manual startup
 
