@@ -28,6 +28,22 @@ else
   echo "Goose CLI already installed."
 fi
 
+if ! command -v shellcheck >/dev/null 2>&1; then
+  echo "Installing shellcheck for shell script linting..."
+  if command -v brew >/dev/null 2>&1; then
+    brew install shellcheck
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update && sudo apt-get install -y shellcheck
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y shellcheck
+  else
+    echo "Warning: Could not install shellcheck automatically."
+    echo "Please install shellcheck manually: https://github.com/koalaman/shellcheck"
+  fi
+else
+  echo "shellcheck already installed."
+fi
+
 RECREATE_VENV=0
 if [ -d "${VENV_DIR}" ]; then
   VENV_PY_VER="$("${VENV_DIR}/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
@@ -48,7 +64,7 @@ if [ ! -d "${VENV_DIR}" ] || [ "${RECREATE_VENV}" -eq 1 ]; then
 fi
 
 echo "Installing LiteLLM dependencies in .venv..."
-uv pip install -q --python "${VENV_DIR}/bin/python" "litellm[proxy]" boto3 python-multipart certifi bottle
+uv pip install -q --python "${VENV_DIR}/bin/python" "litellm[proxy]" boto3 python-multipart certifi bottle flake8 black isort mypy yamllint pytest pytest-xdist pytest-cov pytest-mock
 
 if [ ! -f "${HOME}/.aws/credentials" ]; then
   echo "Warning: ${HOME}/.aws/credentials not found."

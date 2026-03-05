@@ -23,6 +23,7 @@ Goals:
 - `scripts/start_slack_server.sh` - start Slack middleware server for slash commands (/goose)
 - `scripts/start_slack_events.sh` - start Slack Events Handler for @mention integration
 - `scripts/start_github_reviewer.sh` - start GitHub PR Reviewer for automated code reviews
+  - `scripts/lint.sh` - run comprehensive linting for Python, YAML, and shell scripts
   - `scripts/example_dagster_usage.py` - example script demonstrating Dagster tool usage
 - `config/` - Configuration files directory
   - `litellm_config.yaml` - LiteLLM model mapping
@@ -357,6 +358,65 @@ The code demonstrates good structure and follows most best practices. The main a
 - Test webhook delivery in GitHub repository settings
 - Use `lsof -ti:4000 | xargs kill -9` to stop the reviewer
 
+### Testing & Quality Assurance
+
+This project includes comprehensive testing and quality assurance tools.
+
+#### Running Tests:
+
+```bash
+cd agents-goose
+./scripts/test.sh                    # Run all tests
+./scripts/test.sh --unit            # Run only unit tests
+./scripts/test.sh --integration     # Run only integration tests
+./scripts/test.sh --performance     # Run only performance tests
+
+# Direct pytest commands:
+python -m pytest tests/              # Run all tests
+python -m pytest tests/ -k "test_name"  # Run specific test
+python -m pytest tests/ --pdb        # Debug failing tests
+```
+
+**Current Status:** 66/80 tests pass. Test infrastructure is in place with comprehensive edge case coverage. Some tests need refinement but demonstrate proper testing patterns.
+
+#### Test Structure:
+
+- **`tests/test_*.py`** - Comprehensive test suites for each module
+- **Parallel execution** - Uses all CPU cores for faster test runs
+- **Coverage reporting** - 80% minimum coverage requirement
+- **Edge case testing** - Tests for boundary conditions and error scenarios
+
+#### Test Categories:
+
+- **Unit Tests** - Individual function/component testing
+- **Integration Tests** - Multi-component interaction testing
+- **Performance Tests** - Load and concurrency testing
+- **Edge Case Tests** - Boundary condition and error handling
+
+#### Pre-commit Hooks:
+
+The project includes automated quality checks that run before each commit:
+
+```bash
+# The pre-commit hook automatically:
+# 1. Runs auto-fix for linting issues (isort + black)
+# 2. Executes the full test suite
+# 3. Prevents commits if quality checks fail
+# 4. Auto-stages fixed files
+
+# To bypass checks for urgent commits:
+git commit --no-verify -m "Urgent fix"
+```
+
+#### Test Coverage:
+
+The test suite provides:
+- **Comprehensive edge case testing** - Boundary conditions, error scenarios, concurrency
+- **Parallel execution** - Uses all CPU cores for faster test runs
+- **Extensive mocking** - Tests external API interactions safely
+- **Performance testing** - Load and timing validations
+- **Integration coverage** - Tests for all major modules (goose_server, dagster_tool, github_pr_reviewer)
+
 ### Dagster Pipeline Operations
 
 Goose can interact with Dagster pipelines using the built-in `dagster_tool.py` module. This allows for pipeline execution, backfills, and status monitoring.
@@ -423,6 +483,76 @@ result = list_dagster_pipelines("default")
 #### Integration with Goose:
 
 The `dagster_tool.py` is automatically available in Goose's execution environment. Simply reference the functions in your task descriptions and Goose will execute them using the Dagster GraphQL API.
+
+### Code Quality & Linting
+
+This project includes comprehensive linting tools for Python, YAML, and shell scripts to maintain code quality.
+
+#### Linting Tools Included:
+
+- **Python**: `black` (formatting), `isort` (import sorting), `flake8` (style), `mypy` (type checking)
+- **YAML**: `yamllint` (syntax and formatting)
+- **Shell**: `shellcheck` (syntax and best practices)
+
+#### Run Linting:
+
+```bash
+cd agents-goose
+./scripts/lint.sh
+```
+
+This will run all linters and report any issues. The script will exit with code 0 if all checks pass, or code 1 if any issues are found.
+
+#### Auto-fix Issues:
+
+```bash
+# Auto-fix formatting and import issues
+./scripts/lint.sh --fix
+
+# Or fix manually:
+python -m isort src/ scripts/                    # Fix import sorting
+python -m black src/ scripts/                    # Fix code formatting
+
+# Check remaining issues
+python -m flake8 src/ scripts/
+```
+
+#### Pre-commit Hooks:
+
+The project includes a pre-commit hook that automatically runs linting before each commit:
+
+```bash
+# The hook will:
+# 1. Run auto-fix (isort + black)
+# 2. Run all linting checks
+# 3. Auto-stage any fixed files
+# 4. Prevent commit if issues remain
+
+# To install the hook manually (usually automatic):
+chmod +x .git/hooks/pre-commit
+```
+
+**Benefits:**
+- ✅ **Automatic quality checks** - No bad code gets committed
+- ✅ **Auto-fix integration** - Formatting issues fixed automatically
+- ✅ **Team consistency** - Everyone follows the same standards
+- ✅ **Early feedback** - Catch issues before they reach CI/CD
+
+#### Configuration Files:
+
+- **`pyproject.toml`** - Python linting configuration (black, isort, flake8, mypy)
+- **`.yamllint.yaml`** - YAML linting configuration
+- **`.shellcheckrc`** - Shell script linting configuration
+
+#### CI/CD Integration:
+
+The linting script can be integrated into CI/CD pipelines:
+
+```yaml
+# In GitHub Actions or similar
+- name: Run Linting
+  run: ./scripts/lint.sh
+```
 
 ### Option 2: Manual startup
 

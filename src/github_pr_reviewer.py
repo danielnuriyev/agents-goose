@@ -23,18 +23,19 @@ Environment Variables:
 - GOOSE_SERVER_URL: URL of goose_server.py (default: http://localhost:8765)
 """
 
+import hashlib
+import hmac
 import json
 import os
-import hmac
-import hashlib
-import time
 import re
-from bottle import Bottle, request, response, abort
-from urllib.parse import urlparse
-from urllib.request import urlopen, Request, urlretrieve
-from pathlib import Path
-import tempfile
 import subprocess
+import tempfile
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen, urlretrieve
+
+from bottle import Bottle, abort, request, response
 
 app = Bottle()
 
@@ -43,19 +44,16 @@ GOOSE_SERVER_URL = os.getenv("GOOSE_SERVER_URL", "http://localhost:8765")
 GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
+
 def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") -> str:
     """Submit a task to the Goose server and return the task_id."""
-    payload = {
-        "task": task_text,
-        "model": model,
-        "working_directory": str(Path.cwd())
-    }
+    payload = {"task": task_text, "model": model, "working_directory": str(Path.cwd())}
 
     req = Request(
         f"{GOOSE_SERVER_URL}/tasks",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
-        method="POST"
+        method="POST",
     )
 
     try:
@@ -64,6 +62,7 @@ def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") ->
             return data["task_id"]
     except Exception as e:
         raise Exception(f"Failed to submit task to Goose server: {str(e)}")
+
 
 def get_task_status(task_id: str) -> dict:
     """Get the current status of a Goose task."""
@@ -75,7 +74,10 @@ def get_task_status(task_id: str) -> dict:
     except Exception as e:
         raise Exception(f"Failed to get task status: {str(e)}")
 
-def wait_for_task_completion(task_id: str, timeout_seconds: int = 1200) -> dict:  # 20 minutes for PR reviews
+
+def wait_for_task_completion(
+    task_id: str, timeout_seconds: int = 1200
+) -> dict:  # 20 minutes for PR reviews
     """Poll for task completion and return final status."""
     start_time = time.time()
 
@@ -91,17 +93,15 @@ def wait_for_task_completion(task_id: str, timeout_seconds: int = 1200) -> dict:
         time.sleep(5)  # Poll every 5 seconds for PR reviews
 
     # Timeout reached
-    return {
-        "status": "timeout",
-        "error": f"PR review timed out after {timeout_seconds} seconds"
-    }
+    return {"status": "timeout", "error": f"PR review timed out after {timeout_seconds} seconds"}
+
 
 def verify_github_webhook() -> bool:
     """Verify that the request came from GitHub using webhook secret."""
     if not GITHUB_WEBHOOK_SECRET:
         return True  # Skip verification if no secret configured
 
-    signature = request.headers.get('X-Hub-Signature-256', '')
+    signature = request.headers.get("X-Hub-Signature-256", "")
     body = request.body.read()
 
     if not signature:
@@ -109,13 +109,12 @@ def verify_github_webhook() -> bool:
 
     # Create expected signature
     expected_signature = hmac.new(
-        GITHUB_WEBHOOK_SECRET.encode('utf-8'),
-        body,
-        hashlib.sha256
+        GITHUB_WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256
     ).hexdigest()
     expected_signature = f"sha256={expected_signature}"
 
     return hmac.compare_digest(expected_signature, signature)
+
 
 def fetch_pr_diff(repo_full_name: str, pr_number: int) -> str:
     """Fetch the PR diff from GitHub API."""
@@ -129,9 +128,10 @@ def fetch_pr_diff(repo_full_name: str, pr_number: int) -> str:
 
     try:
         with urlopen(req) as response:
-            return response.read().decode('utf-8')
+            return response.read().decode("utf-8")
     except Exception as e:
         raise Exception(f"Failed to fetch PR diff: {str(e)}")
+
 
 def parse_line_comments(review_content: str) -> tuple[str, list[dict]]:
     """Parse AI review response to extract overall comment and line-specific comments.
@@ -143,7 +143,7 @@ def parse_line_comments(review_content: str) -> tuple[str, list[dict]]:
     line_comments = []
 
     # Find all FILE: markers and their positions
-    file_pattern = r'FILE:\s*([^\s:]+):(\d+)'
+    file_pattern = r"FILE:\s*([^\s:]+):(\d+)"
     file_matches = list(re.finditer(file_pattern, review_content, re.IGNORECASE))
 
     if not file_matches:
@@ -152,7 +152,7 @@ def parse_line_comments(review_content: str) -> tuple[str, list[dict]]:
 
     # Extract overall content (everything before first FILE: marker)
     first_match = file_matches[0]
-    overall_comment = review_content[:first_match.start()].strip()
+    overall_comment = review_content[: first_match.start()].strip()
 
     # Process each FILE: section
     for i, match in enumerate(file_matches):
@@ -165,9 +165,9 @@ def parse_line_comments(review_content: str) -> tuple[str, list[dict]]:
         # Look for end markers: next FILE:, or section headers like ##
         remaining_content = review_content[start_pos:]
         end_patterns = [
-            (r'FILE:\s*[^\s:]+\:\d+', re.IGNORECASE),  # Next FILE: marker
-            (r'^##\s+', re.MULTILINE),                  # Section headers
-            (r'^\*\*.*\*\*$', re.MULTILINE)             # Bold section headers
+            (r"FILE:\s*[^\s:]+\:\d+", re.IGNORECASE),  # Next FILE: marker
+            (r"^##\s+", re.MULTILINE),  # Section headers
+            (r"^\*\*.*\*\*$", re.MULTILINE),  # Bold section headers
         ]
 
         end_pos = len(review_content)  # Default to end of content
@@ -182,19 +182,18 @@ def parse_line_comments(review_content: str) -> tuple[str, list[dict]]:
         comment_content = review_content[start_pos:end_pos].strip()
 
         # Clean up the comment (remove leading/trailing whitespace and empty lines)
-        comment_lines = [line for line in comment_content.split('\n') if line.strip()]
-        comment_content = '\n'.join(comment_lines).strip()
+        comment_lines = [line for line in comment_content.split("\n") if line.strip()]
+        comment_content = "\n".join(comment_lines).strip()
 
         if comment_content:
-            line_comments.append({
-                'path': file_path,
-                'line': line_number,
-                'body': comment_content
-            })
+            line_comments.append({"path": file_path, "line": line_number, "body": comment_content})
 
     return overall_comment, line_comments
 
-def post_github_review(repo_full_name: str, pr_number: int, review_body: str, event: str = "COMMENT"):
+
+def post_github_review(
+    repo_full_name: str, pr_number: int, review_body: str, event: str = "COMMENT"
+):
     """Post a comprehensive review to GitHub PR with overall comment and line-specific comments."""
 
     if not GITHUB_TOKEN:
@@ -221,7 +220,7 @@ def post_github_review(repo_full_name: str, pr_number: int, review_body: str, ev
     payload = {
         "body": formatted_overall,
         "event": "COMMENT",  # Can be "COMMENT", "APPROVE", "REQUEST_CHANGES"
-        "comments": []
+        "comments": [],
     }
 
     # Add line-specific comments if any were parsed
@@ -229,26 +228,20 @@ def post_github_review(repo_full_name: str, pr_number: int, review_body: str, ev
         # Convert line number to position (approximate, GitHub uses positions in diff)
         # For simplicity, we'll use the line number as position
         # In a more sophisticated implementation, you'd need to map line numbers to diff positions
-        payload["comments"].append({
-            "path": comment["path"],
-            "position": comment["line"],  # This is an approximation
-            "body": f"🤖 **Goose AI Comment:**\n\n{comment['body']}"
-        })
+        payload["comments"].append(
+            {
+                "path": comment["path"],
+                "position": comment["line"],  # This is an approximation
+                "body": f"🤖 **Goose AI Comment:**\n\n{comment['body']}",
+            }
+        )
 
     # Use Pull Request Reviews API instead of Issues API
     url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}/reviews"
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"token {GITHUB_TOKEN}"
-    }
+    headers = {"Content-Type": "application/json", "Authorization": f"token {GITHUB_TOKEN}"}
 
-    req = Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST"
-    )
+    req = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
 
     try:
         with urlopen(req) as response:
@@ -268,12 +261,13 @@ def post_github_review(repo_full_name: str, pr_number: int, review_body: str, ev
                 fallback_url,
                 data=json.dumps(fallback_payload).encode("utf-8"),
                 headers=headers,
-                method="POST"
+                method="POST",
             )
             with urlopen(fallback_req) as response:
                 print(f"Fell back to simple comment for {repo_full_name}#{pr_number}")
         except Exception as fallback_error:
             print(f"Fallback comment also failed: {str(fallback_error)}")
+
 
 def format_pr_review_request(event_data: dict) -> str:
     """Format PR information into a review request for Goose."""
@@ -290,8 +284,8 @@ def format_pr_review_request(event_data: dict) -> str:
     diff_content = ""
     try:
         diff_content = fetch_pr_diff(repo_name, pr_number)
-    except Exception as e:
-        print(f"Could not fetch diff: {e}")
+    except Exception:
+        print("Could not fetch diff - using placeholder")
         diff_content = "Diff not available"
 
     # Read review guidelines from external file
@@ -300,7 +294,7 @@ def format_pr_review_request(event_data: dict) -> str:
         script_dir = Path(__file__).parent.parent
         guidelines_file = script_dir / "prompts" / "github_pr_reviewer.md"
         if guidelines_file.exists():
-            with open(guidelines_file, 'r', encoding='utf-8') as f:
+            with open(guidelines_file, "r", encoding="utf-8") as f:
                 guidelines_content = f.read().strip()
         else:
             print(f"Warning: Review guidelines file not found at {guidelines_file}")
@@ -328,6 +322,7 @@ def format_pr_review_request(event_data: dict) -> str:
 
     return review_prompt
 
+
 def format_review_response(task_result: dict, pr_data: dict) -> str:
     """Extract the raw Goose review response for processing."""
     if task_result["status"] == "completed":
@@ -344,6 +339,7 @@ def format_review_response(task_result: dict, pr_data: dict) -> str:
     else:
         return f"❓ Unknown review status: {task_result.get('status', 'unknown')}"
 
+
 @app.route("/webhook", method="POST")
 def handle_github_webhook():
     """Handle incoming GitHub webhooks."""
@@ -354,7 +350,7 @@ def handle_github_webhook():
 
         # Parse the webhook payload
         event_data = request.json
-        event_type = request.headers.get('X-GitHub-Event', '')
+        event_type = request.headers.get("X-GitHub-Event", "")
 
         # Only process pull request events
         if event_type != "pull_request":
@@ -408,11 +404,13 @@ def handle_github_webhook():
         response.status = 500
         return {"error": "Internal server error"}
 
+
 @app.route("/health", method="GET")
 def health_check():
     """Health check endpoint."""
-    response.content_type = 'application/json'
+    response.content_type = "application/json"
     return {"status": "ok", "service": "github-pr-reviewer"}
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "4000"))  # Different default port
@@ -425,4 +423,5 @@ if __name__ == "__main__":
         print("⚠️  WARNING: GITHUB_TOKEN not set - will not post reviews to GitHub")
 
     from bottle import run
+
     run(app, host="0.0.0.0", port=port, debug=False)

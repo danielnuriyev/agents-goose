@@ -1,0 +1,18 @@
+# ShellCheck configuration
+# https://github.com/koalaman/shellcheck/wiki/Directive
+
+# Allow sourcing files that don't exist (for setup scripts)
+# shellcheck source-path=SCRIPTDIR
+
+# Disable specific warnings
+# SC1090: Can't follow non-constant source - allowed for dynamic paths
+# SC1091: Not following - allowed for optional includes
+# SC2034: appears unused - allowed for exported variables
+# SC2155: Declare and assign separately - allowed for readability
+disable=SC1090,SC1091,SC2034,SC2155
+
+# Enable additional checks
+enable=all
+
+# Exclude files
+exclude=SC2148  # Shebang should be on first line - not applicable for sourced files

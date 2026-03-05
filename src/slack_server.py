@@ -23,10 +23,11 @@ Environment Variables:
 import json
 import os
 import time
-from bottle import Bottle, request, response, run
-from urllib.parse import urlparse
-from urllib.request import urlopen, Request
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+
+from bottle import Bottle, request, response, run
 
 app = Bottle()
 
@@ -34,19 +35,16 @@ app = Bottle()
 GOOSE_SERVER_URL = os.getenv("GOOSE_SERVER_URL", "http://localhost:8765")
 SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET", "")
 
+
 def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") -> str:
     """Submit a task to the Goose server and return the task_id."""
-    payload = {
-        "task": task_text,
-        "model": model,
-        "working_directory": str(Path.cwd())
-    }
+    payload = {"task": task_text, "model": model, "working_directory": str(Path.cwd())}
 
     req = Request(
         f"{GOOSE_SERVER_URL}/tasks",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
-        method="POST"
+        method="POST",
     )
 
     try:
@@ -55,6 +53,7 @@ def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") ->
             return data["task_id"]
     except Exception as e:
         raise Exception(f"Failed to submit task to Goose server: {str(e)}")
+
 
 def get_task_status(task_id: str) -> dict:
     """Get the current status of a Goose task."""
@@ -65,6 +64,7 @@ def get_task_status(task_id: str) -> dict:
             return json.loads(response.read().decode("utf-8"))
     except Exception as e:
         raise Exception(f"Failed to get task status: {str(e)}")
+
 
 def wait_for_task_completion(task_id: str, timeout_seconds: int = 600) -> dict:
     """Poll for task completion and return final status."""
@@ -82,16 +82,14 @@ def wait_for_task_completion(task_id: str, timeout_seconds: int = 600) -> dict:
         time.sleep(2)  # Poll every 2 seconds
 
     # Timeout reached
-    return {
-        "status": "timeout",
-        "error": f"Task timed out after {timeout_seconds} seconds"
-    }
+    return {"status": "timeout", "error": f"Task timed out after {timeout_seconds} seconds"}
+
 
 def send_slack_response(response_url: str, message: str, is_error: bool = False) -> None:
     """Send a response back to Slack using the response_url."""
     payload = {
         "text": message,
-        "response_type": "in_channel"  # Makes the response visible to the whole channel
+        "response_type": "in_channel",  # Makes the response visible to the whole channel
     }
 
     if is_error:
@@ -101,7 +99,7 @@ def send_slack_response(response_url: str, message: str, is_error: bool = False)
         response_url,
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
-        method="POST"
+        method="POST",
     )
 
     try:
@@ -109,6 +107,7 @@ def send_slack_response(response_url: str, message: str, is_error: bool = False)
             pass  # Success
     except Exception as e:
         print(f"Failed to send Slack response: {str(e)}")
+
 
 def format_task_output(task_result: dict) -> str:
     """Format the task result for Slack display."""
@@ -138,6 +137,7 @@ def format_task_output(task_result: dict) -> str:
     else:
         return f"❓ Unknown status: {task_result.get('status', 'unknown')}"
 
+
 @app.route("/slack/command", method="POST")
 def handle_slack_command():
     """Handle incoming Slack slash commands."""
@@ -149,22 +149,26 @@ def handle_slack_command():
 
         # Validate required fields
         if not text:
-            response.content_type = 'application/json'
-            return {"text": "❌ Usage: /goose <your task description>", "response_type": "ephemeral"}
+            response.content_type = "application/json"
+            return {
+                "text": "❌ Usage: /goose <your task description>",
+                "response_type": "ephemeral",
+            }
 
         if not response_url:
-            response.content_type = 'application/json'
+            response.content_type = "application/json"
             return {"text": "❌ Missing response_url from Slack", "response_type": "ephemeral"}
 
         # Immediately acknowledge Slack (required within 3 seconds)
         # We'll send the actual response later via response_url
         response_payload = {
             "text": f"🤖 Processing your request, {user_name}...",
-            "response_type": "ephemeral"  # Only visible to the user who issued the command
+            "response_type": "ephemeral",  # Only visible to the user who issued the command
         }
 
         # Start the async task processing in a background thread
         import threading
+
         def process_task():
             try:
                 # Submit task to Goose server
@@ -188,19 +192,21 @@ def handle_slack_command():
         thread.start()
 
         # Return immediate acknowledgment to Slack
-        response.content_type = 'application/json'
+        response.content_type = "application/json"
         return response_payload
 
     except Exception as e:
         print(f"Error handling Slack command: {str(e)}")
-        response.content_type = 'application/json'
+        response.content_type = "application/json"
         return {"text": f"❌ Internal server error: {str(e)}", "response_type": "ephemeral"}
+
 
 @app.route("/health", method="GET")
 def health_check():
     """Health check endpoint."""
-    response.content_type = 'application/json'
+    response.content_type = "application/json"
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "3000"))

@@ -21,15 +21,16 @@ Environment Variables:
 - GOOSE_SERVER_URL: URL of goose_server.py (default: http://localhost:8765)
 """
 
+import hashlib
+import hmac
 import json
 import os
-import hmac
-import hashlib
 import time
-from bottle import Bottle, request, response, abort
-from urllib.parse import urlparse
-from urllib.request import urlopen, Request
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+
+from bottle import Bottle, abort, request, response
 
 app = Bottle()
 
@@ -38,19 +39,16 @@ GOOSE_SERVER_URL = os.getenv("GOOSE_SERVER_URL", "http://localhost:8765")
 SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET", "")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 
+
 def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") -> str:
     """Submit a task to the Goose server and return the task_id."""
-    payload = {
-        "task": task_text,
-        "model": model,
-        "working_directory": str(Path.cwd())
-    }
+    payload = {"task": task_text, "model": model, "working_directory": str(Path.cwd())}
 
     req = Request(
         f"{GOOSE_SERVER_URL}/tasks",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
-        method="POST"
+        method="POST",
     )
 
     try:
@@ -59,6 +57,7 @@ def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") ->
             return data["task_id"]
     except Exception as e:
         raise Exception(f"Failed to submit task to Goose server: {str(e)}")
+
 
 def get_task_status(task_id: str) -> dict:
     """Get the current status of a Goose task."""
@@ -69,6 +68,7 @@ def get_task_status(task_id: str) -> dict:
             return json.loads(response.read().decode("utf-8"))
     except Exception as e:
         raise Exception(f"Failed to get task status: {str(e)}")
+
 
 def wait_for_task_completion(task_id: str, timeout_seconds: int = 600) -> dict:
     """Poll for task completion and return final status."""
@@ -86,10 +86,8 @@ def wait_for_task_completion(task_id: str, timeout_seconds: int = 600) -> dict:
         time.sleep(2)  # Poll every 2 seconds
 
     # Timeout reached
-    return {
-        "status": "timeout",
-        "error": f"Task timed out after {timeout_seconds} seconds"
-    }
+    return {"status": "timeout", "error": f"Task timed out after {timeout_seconds} seconds"}
+
 
 def send_slack_message(channel: str, text: str) -> None:
     """Send a message to a Slack channel using the Web API."""
@@ -97,19 +95,13 @@ def send_slack_message(channel: str, text: str) -> None:
         print(f"Would send to Slack channel {channel}: {text}")
         return
 
-    payload = {
-        "channel": channel,
-        "text": text
-    }
+    payload = {"channel": channel, "text": text}
 
     req = Request(
         "https://slack.com/api/chat.postMessage",
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {SLACK_BOT_TOKEN}"
-        },
-        method="POST"
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
+        method="POST",
     )
 
     try:
@@ -119,6 +111,7 @@ def send_slack_message(channel: str, text: str) -> None:
                 print(f"Failed to send Slack message: {result.get('error')}")
     except Exception as e:
         print(f"Failed to send Slack message: {str(e)}")
+
 
 def format_task_output(task_result: dict) -> str:
     """Format the task result for Slack display."""
@@ -148,13 +141,14 @@ def format_task_output(task_result: dict) -> str:
     else:
         return f"❓ Unknown status: {task_result.get('status', 'unknown')}"
 
+
 def verify_slack_request() -> bool:
     """Verify that the request came from Slack using signing secret."""
     if not SLACK_SIGNING_SECRET:
         return True  # Skip verification if no secret configured
 
-    timestamp = request.headers.get('X-Slack-Request-Timestamp', '')
-    signature = request.headers.get('X-Slack-Signature', '')
+    timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
+    signature = request.headers.get("X-Slack-Signature", "")
 
     if not timestamp or not signature:
         return False
@@ -171,13 +165,12 @@ def verify_slack_request() -> bool:
 
     # Create the expected signature
     expected_signature = hmac.new(
-        SLACK_SIGNING_SECRET.encode('utf-8'),
-        basestring.encode('utf-8'),
-        hashlib.sha256
+        SLACK_SIGNING_SECRET.encode("utf-8"), basestring.encode("utf-8"), hashlib.sha256
     ).hexdigest()
     expected_signature = f"v0={expected_signature}"
 
     return hmac.compare_digest(expected_signature, signature)
+
 
 @app.route("/events", method="POST")
 def handle_slack_event():
@@ -192,7 +185,7 @@ def handle_slack_event():
 
         # Handle URL verification challenge
         if event_data.get("type") == "url_verification":
-            response.content_type = 'application/json'
+            response.content_type = "application/json"
             return {"challenge": event_data.get("challenge")}
 
         # Extract the actual event
@@ -218,6 +211,7 @@ def handle_slack_event():
         response.status = 500
         return {"error": "Internal server error"}
 
+
 def handle_app_mention(event: dict):
     """Handle when the bot is mentioned (@GooseBot)."""
     try:
@@ -228,10 +222,14 @@ def handle_app_mention(event: dict):
         # Remove the bot mention from the text (e.g., "<@U123456> do something" -> "do something")
         # The mention format is <@USERID>
         import re
-        text = re.sub(r'<@\w+>', '', text).strip()
+
+        text = re.sub(r"<@\w+>", "", text).strip()
 
         if not text:
-            send_slack_message(channel, f"Hey there! 👋 I'm GooseBot. Mention me with a task, like '@GooseBot write a hello world program'")
+            send_slack_message(
+                channel,
+                "Hey there! 👋 I'm GooseBot. Mention me with a task, like '@GooseBot write a hello world program'",
+            )
             response.status = 200
             return {"ok": True}
 
@@ -240,11 +238,14 @@ def handle_app_mention(event: dict):
 
         # Process the task asynchronously
         import threading
+
         def process_task():
             try:
                 # Submit task to Goose server
                 task_id = submit_goose_task(text)
-                print(f"Submitted task {task_id} from Slack mention by user {user}: {text[:100]}...")
+                print(
+                    f"Submitted task {task_id} from Slack mention by user {user}: {text[:100]}..."
+                )
 
                 # Send initial acknowledgment
                 send_slack_message(channel, f"🤖 Processing your request...")
@@ -272,6 +273,7 @@ def handle_app_mention(event: dict):
         response.status = 500
         return {"error": "Internal server error"}
 
+
 def handle_message(event: dict):
     """Handle regular messages (DMs, channel messages)."""
     # For now, just acknowledge the event
@@ -289,11 +291,13 @@ def handle_message(event: dict):
     response.status = 200
     return {"ok": True}
 
+
 @app.route("/health", method="GET")
 def health_check():
     """Health check endpoint."""
-    response.content_type = 'application/json'
+    response.content_type = "application/json"
     return {"status": "ok", "service": "slack-events"}
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "3001"))  # Different default port than slack_server.py
@@ -306,4 +310,5 @@ if __name__ == "__main__":
         print("ℹ️  SLACK_BOT_TOKEN not set - will only log messages (no sending)")
 
     from bottle import run
+
     run(app, host="0.0.0.0", port=port, debug=False)

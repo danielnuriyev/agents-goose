@@ -6,17 +6,13 @@ This script demonstrates how to use the dagster_tool.py functions
 that are available to Goose for pipeline operations.
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import sys
 
-from dagster_tool import (
-    run_dagster_pipeline,
-    run_dagster_backfill,
-    check_dagster_pipeline_status,
-    list_dagster_pipelines,
-    list_dagster_runs
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from dagster_tool import list_dagster_pipelines, list_dagster_runs
+
 
 def demo_pipeline_operations():
     """Demonstrate various Dagster operations."""
@@ -38,8 +34,8 @@ def demo_pipeline_operations():
     print("1. Listing pipelines...")
     try:
         result = list_dagster_pipelines(repository_name)
-        if result['success']:
-            pipelines = result['pipelines']
+        if result["success"]:
+            pipelines = result["pipelines"]
             print(f"Success: Found {len(pipelines)} pipelines:")
             for pipeline in pipelines[:5]:  # Show first 5
                 print(f"  - {pipeline['name']}: {pipeline.get('description', 'No description')}")
@@ -77,8 +73,8 @@ def demo_pipeline_operations():
     print("4. Listing recent runs...")
     try:
         result = list_dagster_runs(limit=5)
-        if result['success']:
-            runs = result['runs']
+        if result["success"]:
+            runs = result["runs"]
             print(f"Success: Found {len(runs)} recent runs:")
             for run in runs:
                 print(f"  - {run['run_id']}: {run['pipeline_name']} ({run['status']})")

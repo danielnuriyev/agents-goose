@@ -1,0 +1,15 @@
+extends: relaxed
+
+rules:
+  line-length:
+    max: 150
+    level: warning
+
+  truthy:
+    check-keys: false
+
+  comments-indentation: disable
+
+  new-line-at-end-of-file: disable
+
+  document-start: disable

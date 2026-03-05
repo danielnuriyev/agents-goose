@@ -29,8 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict
 from urllib.parse import urlparse
-from urllib.request import urlopen, Request
-
+from urllib.request import Request, urlopen
 
 TERMINAL_STATUSES = {"completed", "failed"}
 TASKS: Dict[str, dict] = {}
@@ -60,7 +59,7 @@ def get_litellm_models() -> list:
     try:
         req = Request("http://localhost:4321/v1/models")
         with urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            data = json.loads(response.read().decode("utf-8"))
             return data.get("data", [])
     except Exception as e:
         return {"error": f"Failed to fetch models: {str(e)}"}
@@ -136,15 +135,15 @@ def run_task(task_id: str) -> None:
             exit_code = -1
 
     with TASKS_LOCK:
-            if task_id not in TASKS:
-                return
-            TASKS[task_id]["status"] = status
-            TASKS[task_id]["completed_at"] = utc_now()
-            TASKS[task_id]["updated_at"] = utc_now()
-            TASKS[task_id]["exit_code"] = exit_code
-            TASKS[task_id]["stdout"] = stdout
-            TASKS[task_id]["stderr"] = stderr
-            TASKS[task_id]["error"] = error
+        if task_id not in TASKS:
+            return
+        TASKS[task_id]["status"] = status
+        TASKS[task_id]["completed_at"] = utc_now()
+        TASKS[task_id]["updated_at"] = utc_now()
+        TASKS[task_id]["exit_code"] = exit_code
+        TASKS[task_id]["stdout"] = stdout
+        TASKS[task_id]["stderr"] = stderr
+        TASKS[task_id]["error"] = error
 
 
 class TaskHandler(BaseHTTPRequestHandler):
@@ -232,7 +231,9 @@ class TaskHandler(BaseHTTPRequestHandler):
             "task": task_text,
             "model": payload.get("model"),
             "max_turns": payload.get("max_turns", DEFAULT_MAX_TURNS),
-            "max_tool_repetitions": payload.get("max_tool_repetitions", DEFAULT_MAX_TOOL_REPETITIONS),
+            "max_tool_repetitions": payload.get(
+                "max_tool_repetitions", DEFAULT_MAX_TOOL_REPETITIONS
+            ),
             "timeout_seconds": payload.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
             "status": "queued",
             "working_directory": working_directory,
@@ -267,7 +268,7 @@ def main() -> None:
 
     server = ThreadingHTTPServer((args.host, args.port), TaskHandler)
     print(f"Goose task server listening on http://{args.host}:{args.port}")
-    print("POST /tasks with JSON {\"task\": \"...\"} to submit work.")
+    print('POST /tasks with JSON {"task": "..."} to submit work.')
     print("GET /tasks/<task_id> to read status.")
     try:
         server.serve_forever()

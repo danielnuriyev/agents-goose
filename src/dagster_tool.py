@@ -21,7 +21,7 @@ import json
 import os
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
-from urllib.request import urlopen, Request
+from urllib.request import Request, urlopen
 
 
 class DagsterTool:
@@ -47,7 +47,7 @@ class DagsterTool:
             }
             """
             response = self._execute_query(query)
-            if 'errors' in response:
+            if "errors" in response:
                 print(f"Warning: Dagster GraphQL connection test failed: {response['errors']}")
             else:
                 print("Dagster GraphQL connection established")
@@ -75,7 +75,7 @@ class DagsterTool:
             self.graphql_url,
             data=json.dumps(payload).encode("utf-8"),
             headers=headers,
-            method="POST"
+            method="POST",
         )
 
         try:
@@ -116,45 +116,46 @@ class DagsterTool:
         variables = {"repositoryName": repository_name}
         response = self._execute_query(query, variables)
 
-        if 'errors' in response:
+        if "errors" in response:
             return {
-                'success': False,
-                'error': f"GraphQL error: {response['errors']}",
-                'pipelines': []
+                "success": False,
+                "error": f"GraphQL error: {response['errors']}",
+                "pipelines": [],
             }
 
         try:
-            repositories = response['data']['repositoriesOrError']
-            if 'nodes' in repositories:
-                for repo in repositories['nodes']:
-                    if repo['name'] == repository_name:
+            repositories = response["data"]["repositoriesOrError"]
+            if "nodes" in repositories:
+                for repo in repositories["nodes"]:
+                    if repo["name"] == repository_name:
                         pipelines = [
                             {
-                                'name': pipeline['name'],
-                                'description': pipeline.get('description', '')
+                                "name": pipeline["name"],
+                                "description": pipeline.get("description", ""),
                             }
-                            for pipeline in repo['pipelines']
+                            for pipeline in repo["pipelines"]
                         ]
                         return {
-                            'success': True,
-                            'pipelines': pipelines,
-                            'repository': repository_name
+                            "success": True,
+                            "pipelines": pipelines,
+                            "repository": repository_name,
                         }
 
             return {
-                'success': False,
-                'error': f"Repository '{repository_name}' not found",
-                'pipelines': []
+                "success": False,
+                "error": f"Repository '{repository_name}' not found",
+                "pipelines": [],
             }
         except (KeyError, TypeError) as e:
-            return {
-                'success': False,
-                'error': f"Failed to parse response: {e}",
-                'pipelines': []
-            }
+            return {"success": False, "error": f"Failed to parse response: {e}", "pipelines": []}
 
-    def launch_pipeline(self, pipeline_name: str, repository_name: str = "__repository__",
-                       run_config: Optional[Dict] = None, run_id: Optional[str] = None) -> Dict:
+    def launch_pipeline(
+        self,
+        pipeline_name: str,
+        repository_name: str = "__repository__",
+        run_config: Optional[Dict] = None,
+        run_id: Optional[str] = None,
+    ) -> Dict:
         """
         Launch a Dagster pipeline run.
 
@@ -188,10 +189,7 @@ class DagsterTool:
         """
 
         execution_params = {
-            "selector": {
-                "pipelineName": pipeline_name,
-                "repositoryName": repository_name
-            }
+            "selector": {"pipelineName": pipeline_name, "repositoryName": repository_name}
         }
 
         if run_config:
@@ -203,35 +201,36 @@ class DagsterTool:
         variables = {"executionParams": execution_params}
         response = self._execute_query(mutation, variables)
 
-        if 'errors' in response:
+        if "errors" in response:
             return {
-                'success': False,
-                'error': f"GraphQL error: {response['errors']}",
+                "success": False,
+                "error": f"GraphQL error: {response['errors']}",
             }
 
         try:
-            result = response['data']['launchPipelineExecution']
-            if result['__typename'] == 'LaunchPipelineExecutionSuccess':
-                run = result['run']
+            result = response["data"]["launchPipelineExecution"]
+            if result["__typename"] == "LaunchPipelineExecutionSuccess":
+                run = result["run"]
                 return {
-                    'success': True,
-                    'message': f'Pipeline {pipeline_name} launched successfully',
-                    'run_id': run['runId'],
-                    'status': run['status']
+                    "success": True,
+                    "message": f"Pipeline {pipeline_name} launched successfully",
+                    "run_id": run["runId"],
+                    "status": run["status"],
                 }
             else:
                 return {
-                    'success': False,
-                    'error': result.get('message', 'Unknown error'),
+                    "success": False,
+                    "error": result.get("message", "Unknown error"),
                 }
         except (KeyError, TypeError) as e:
             return {
-                'success': False,
-                'error': f"Failed to parse response: {e}",
+                "success": False,
+                "error": f"Failed to parse response: {e}",
             }
 
-    def run_backfill(self, partition_set_name: str, partition_names: List[str],
-                    from_failure: bool = False) -> Dict:
+    def run_backfill(
+        self, partition_set_name: str, partition_names: List[str], from_failure: bool = False
+    ) -> Dict:
         """
         Run a backfill for a Dagster partition set.
 
@@ -264,44 +263,44 @@ class DagsterTool:
             "backfillParams": {
                 "partitionSetName": partition_set_name,
                 "partitionNames": partition_names,
-                "fromFailure": from_failure
+                "fromFailure": from_failure,
             }
         }
 
         response = self._execute_query(mutation, variables)
 
-        if 'errors' in response:
+        if "errors" in response:
             return {
-                'success': False,
-                'error': f"GraphQL error: {response['errors']}",
-                'partition_set': partition_set_name,
-                'partitions': partition_names
+                "success": False,
+                "error": f"GraphQL error: {response['errors']}",
+                "partition_set": partition_set_name,
+                "partitions": partition_names,
             }
 
         try:
-            result = response['data']['launchPartitionBackfill']
-            if result['__typename'] == 'LaunchBackfillSuccess':
+            result = response["data"]["launchPartitionBackfill"]
+            if result["__typename"] == "LaunchBackfillSuccess":
                 return {
-                    'success': True,
-                    'message': 'Backfill launched successfully',
-                    'backfill_id': result['backfillId'],
-                    'partition_set': partition_set_name,
-                    'partitions': partition_names,
-                    'from_failure': from_failure
+                    "success": True,
+                    "message": "Backfill launched successfully",
+                    "backfill_id": result["backfillId"],
+                    "partition_set": partition_set_name,
+                    "partitions": partition_names,
+                    "from_failure": from_failure,
                 }
             else:
                 return {
-                    'success': False,
-                    'error': result.get('message', 'Unknown error'),
-                    'partition_set': partition_set_name,
-                    'partitions': partition_names
+                    "success": False,
+                    "error": result.get("message", "Unknown error"),
+                    "partition_set": partition_set_name,
+                    "partitions": partition_names,
                 }
         except (KeyError, TypeError) as e:
             return {
-                'success': False,
-                'error': f"Failed to parse response: {e}",
-                'partition_set': partition_set_name,
-                'partitions': partition_names
+                "success": False,
+                "error": f"Failed to parse response: {e}",
+                "partition_set": partition_set_name,
+                "partitions": partition_names,
             }
 
     def get_pipeline_status(self, run_id: str) -> Dict:
@@ -339,37 +338,33 @@ class DagsterTool:
         variables = {"runId": run_id}
         response = self._execute_query(query, variables)
 
-        if 'errors' in response:
+        if "errors" in response:
             return {
-                'success': False,
-                'error': f"GraphQL error: {response['errors']}",
-                'run_id': run_id
+                "success": False,
+                "error": f"GraphQL error: {response['errors']}",
+                "run_id": run_id,
             }
 
         try:
-            result = response['data']['runOrError']
-            if result['__typename'] == 'Run':
+            result = response["data"]["runOrError"]
+            if result["__typename"] == "Run":
                 return {
-                    'success': True,
-                    'run_id': result['runId'],
-                    'status': result['status'],
-                    'start_time': result.get('startTime'),
-                    'end_time': result.get('endTime'),
-                    'mode': result.get('mode'),
-                    'tags': result.get('tags', [])
+                    "success": True,
+                    "run_id": result["runId"],
+                    "status": result["status"],
+                    "start_time": result.get("startTime"),
+                    "end_time": result.get("endTime"),
+                    "mode": result.get("mode"),
+                    "tags": result.get("tags", []),
                 }
             else:
                 return {
-                    'success': False,
-                    'error': result.get('message', 'Run not found'),
-                    'run_id': run_id
+                    "success": False,
+                    "error": result.get("message", "Run not found"),
+                    "run_id": run_id,
                 }
         except (KeyError, TypeError) as e:
-            return {
-                'success': False,
-                'error': f"Failed to parse response: {e}",
-                'run_id': run_id
-            }
+            return {"success": False, "error": f"Failed to parse response: {e}", "run_id": run_id}
 
     def list_runs(self, pipeline_name: Optional[str] = None, limit: int = 10) -> Dict:
         """
@@ -407,71 +402,65 @@ class DagsterTool:
         if pipeline_name:
             filter_dict["pipelineName"] = pipeline_name
 
-        variables = {
-            "filter": filter_dict,
-            "limit": limit
-        }
+        variables = {"filter": filter_dict, "limit": limit}
 
         response = self._execute_query(query, variables)
 
-        if 'errors' in response:
-            return {
-                'success': False,
-                'error': f"GraphQL error: {response['errors']}",
-                'runs': []
-            }
+        if "errors" in response:
+            return {"success": False, "error": f"GraphQL error: {response['errors']}", "runs": []}
 
         try:
-            result = response['data']['runsOrError']
-            if result['__typename'] == 'Runs':
+            result = response["data"]["runsOrError"]
+            if result["__typename"] == "Runs":
                 runs = [
                     {
-                        'run_id': run['runId'],
-                        'pipeline_name': run['pipelineName'],
-                        'status': run['status'],
-                        'start_time': run.get('startTime'),
-                        'end_time': run.get('endTime'),
-                        'mode': run.get('mode')
+                        "run_id": run["runId"],
+                        "pipeline_name": run["pipelineName"],
+                        "status": run["status"],
+                        "start_time": run.get("startTime"),
+                        "end_time": run.get("endTime"),
+                        "mode": run.get("mode"),
                     }
-                    for run in result['results']
+                    for run in result["results"]
                 ]
-                return {
-                    'success': True,
-                    'runs': runs,
-                    'count': len(runs)
-                }
+                return {"success": True, "runs": runs, "count": len(runs)}
             else:
                 return {
-                    'success': False,
-                    'error': result.get('message', 'Unknown error'),
-                    'runs': []
+                    "success": False,
+                    "error": result.get("message", "Unknown error"),
+                    "runs": [],
                 }
         except (KeyError, TypeError) as e:
-            return {
-                'success': False,
-                'error': f"Failed to parse response: {e}",
-                'runs': []
-            }
+            return {"success": False, "error": f"Failed to parse response: {e}", "runs": []}
 
 
 # Convenience functions for easy use in Goose prompts
 _dagster_tool = DagsterTool()
 
-def run_dagster_pipeline(pipeline_name: str, repository_name: str = "__repository__", run_config: dict = None):
+
+def run_dagster_pipeline(
+    pipeline_name: str, repository_name: str = "__repository__", run_config: dict = None
+):
     """Convenience function to run a Dagster pipeline."""
     return _dagster_tool.launch_pipeline(pipeline_name, repository_name, run_config)
 
-def run_dagster_backfill(partition_set_name: str, partition_names: list, from_failure: bool = False):
+
+def run_dagster_backfill(
+    partition_set_name: str, partition_names: list, from_failure: bool = False
+):
     """Convenience function to run a Dagster backfill."""
     return _dagster_tool.run_backfill(partition_set_name, partition_names, from_failure)
+
 
 def check_dagster_pipeline_status(run_id: str):
     """Convenience function to check pipeline run status."""
     return _dagster_tool.get_pipeline_status(run_id)
 
+
 def list_dagster_pipelines(repository_name: str = "default"):
     """Convenience function to list available pipelines."""
     return _dagster_tool.list_pipelines(repository_name)
+
 
 def list_dagster_runs(pipeline_name: str = None, limit: int = 10):
     """Convenience function to list recent pipeline runs."""

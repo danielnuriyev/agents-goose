@@ -126,16 +126,16 @@ def main() -> None:
     if args.wait:
         print("Waiting for task to complete...")
         final_status = client.wait_for_done(
-            response['task_id'],
+            response["task_id"],
             poll_interval_seconds=args.poll_interval,
-            timeout_seconds=args.timeout
+            timeout_seconds=args.timeout,
         )
         print(f"final_status={final_status['status']}")
-        if final_status.get('error'):
+        if final_status.get("error"):
             print(f"error: {final_status['error']}")
-        if final_status.get('stdout'):
+        if final_status.get("stdout"):
             print(f"stdout: {final_status['stdout']}")
-        if final_status.get('stderr'):
+        if final_status.get("stderr"):
             print(f"stderr: {final_status['stderr']}")
         print("done")
 
