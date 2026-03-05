@@ -40,4 +40,4 @@ fi
 
 echo ""
 echo "To restart services:"
-echo "  ./start_server.sh"
+echo "  ./scripts/start_server.sh"

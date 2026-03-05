@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""
+GitHub PR Reviewer for Goose task management.
+
+This server integrates with GitHub webhooks to automatically review pull requests
+using Goose AI. When a PR is opened or updated, it:
+
+1. Receives the webhook from GitHub
+2. Fetches PR details (diff, files, description)
+3. Submits review request to Goose
+4. Posts the review back to GitHub
+
+GitHub Webhook Setup:
+1. Go to your repository Settings → Webhooks
+2. Add webhook with URL: https://your-domain.ngrok.io/webhook
+3. Content type: application/json
+4. Events: Pull requests
+5. Add webhook secret for verification
+
+Environment Variables:
+- GITHUB_WEBHOOK_SECRET: For webhook signature verification
+- GITHUB_TOKEN: For posting reviews (optional, if needed)
+- GOOSE_SERVER_URL: URL of goose_server.py (default: http://localhost:8765)
+"""
+
+import json
+import os
+import hmac
+import hashlib
+import time
+from bottle import Bottle, request, response, abort
+from urllib.parse import urlparse
+from urllib.request import urlopen, Request, urlretrieve
+from pathlib import Path
+import tempfile
+import subprocess
+
+app = Bottle()
+
+# Configuration
+GOOSE_SERVER_URL = os.getenv("GOOSE_SERVER_URL", "http://localhost:8765")
+GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+
+def submit_goose_task(task_text: str, model: str = "bedrock-claude-opus-4-6") -> str:
+    """Submit a task to the Goose server and return the task_id."""
+    payload = {
+        "task": task_text,
+        "model": model,
+        "working_directory": str(Path.cwd())
+    }
+
+    req = Request(
+        f"{GOOSE_SERVER_URL}/tasks",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+
+    try:
+        with urlopen(req) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data["task_id"]
+    except Exception as e:
+        raise Exception(f"Failed to submit task to Goose server: {str(e)}")
+
+def get_task_status(task_id: str) -> dict:
+    """Get the current status of a Goose task."""
+    req = Request(f"{GOOSE_SERVER_URL}/tasks/{task_id}")
+
+    try:
+        with urlopen(req) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except Exception as e:
+        raise Exception(f"Failed to get task status: {str(e)}")
+
+def wait_for_task_completion(task_id: str, timeout_seconds: int = 1200) -> dict:  # 20 minutes for PR reviews
+    """Poll for task completion and return final status."""
+    start_time = time.time()
+
+    while time.time() - start_time < timeout_seconds:
+        try:
+            status = get_task_status(task_id)
+            if status["status"] in ["completed", "failed"]:
+                return status
+        except Exception as e:
+            # If we can't get status, keep trying
+            pass
+
+        time.sleep(5)  # Poll every 5 seconds for PR reviews
+
+    # Timeout reached
+    return {
+        "status": "timeout",
+        "error": f"PR review timed out after {timeout_seconds} seconds"
+    }
+
+def verify_github_webhook() -> bool:
+    """Verify that the request came from GitHub using webhook secret."""
+    if not GITHUB_WEBHOOK_SECRET:
+        return True  # Skip verification if no secret configured
+
+    signature = request.headers.get('X-Hub-Signature-256', '')
+    body = request.body.read()
+
+    if not signature:
+        return False
+
+    # Create expected signature
+    expected_signature = hmac.new(
+        GITHUB_WEBHOOK_SECRET.encode('utf-8'),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    expected_signature = f"sha256={expected_signature}"
+
+    return hmac.compare_digest(expected_signature, signature)
+
+def fetch_pr_diff(repo_full_name: str, pr_number: int) -> str:
+    """Fetch the PR diff from GitHub API."""
+    url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}"
+
+    headers = {"Accept": "application/vnd.github.v3.diff"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+
+    req = Request(url, headers=headers)
+
+    try:
+        with urlopen(req) as response:
+            return response.read().decode('utf-8')
+    except Exception as e:
+        raise Exception(f"Failed to fetch PR diff: {str(e)}")
+
+def post_github_review(repo_full_name: str, pr_number: int, review_body: str, event: str = "COMMENT"):
+    """Post a review comment to GitHub PR."""
+    if not GITHUB_TOKEN:
+        print(f"Would post review to {repo_full_name}#{pr_number}: {review_body[:100]}...")
+        return
+
+    url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
+
+    payload = {
+        "body": review_body
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"token {GITHUB_TOKEN}"
+    }
+
+    req = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+
+    try:
+        with urlopen(req) as response:
+            result = json.loads(response.read().decode("utf-8"))
+            print(f"Posted review to {repo_full_name}#{pr_number}")
+    except Exception as e:
+        print(f"Failed to post GitHub review: {str(e)}")
+
+def format_pr_review_request(event_data: dict) -> str:
+    """Format PR information into a review request for Goose."""
+    pr = event_data.get("pull_request", {})
+    repo = event_data.get("repository", {})
+
+    pr_number = pr.get("number")
+    pr_title = pr.get("title", "")
+    pr_body = pr.get("body", "")
+    repo_name = repo.get("full_name", "")
+    branch = pr.get("head", {}).get("ref", "")
+
+    # Try to fetch the diff
+    diff_content = ""
+    try:
+        diff_content = fetch_pr_diff(repo_name, pr_number)
+    except Exception as e:
+        print(f"Could not fetch diff: {e}")
+        diff_content = "Diff not available"
+
+    # Read review guidelines from external file
+    guidelines_content = ""
+    try:
+        script_dir = Path(__file__).parent.parent
+        guidelines_file = script_dir / "prompts" / "github_pr_reviewer.md"
+        if guidelines_file.exists():
+            with open(guidelines_file, 'r', encoding='utf-8') as f:
+                guidelines_content = f.read().strip()
+        else:
+            print(f"Warning: Review guidelines file not found at {guidelines_file}")
+            guidelines_content = "**Review Guidelines:**\n- Focus on code quality, bugs, security issues, and best practices\n- Check for proper error handling and edge cases\n- Review code style and documentation\n- Suggest improvements and optimizations\n- Be constructive and helpful\n\nPlease provide a comprehensive code review with specific comments, suggestions, and an overall assessment."
+    except Exception as e:
+        print(f"Error reading review guidelines: {e}")
+        guidelines_content = "**Review Guidelines:**\n- Focus on code quality, bugs, security issues, and best practices\n- Check for proper error handling and edge cases\n- Review code style and documentation\n- Suggest improvements and optimizations\n- Be constructive and helpful\n\nPlease provide a comprehensive code review with specific comments, suggestions, and an overall assessment."
+
+    # Format the review request
+    review_prompt = f"""Please review this GitHub pull request:
+
+**Repository:** {repo_name}
+**PR #{pr_number}:** {pr_title}
+**Branch:** {branch}
+
+**Description:**
+{pr_body or "No description provided"}
+
+**Changes (diff):**
+```diff
+{diff_content[:50000]}  # Limit diff size
+```
+
+{guidelines_content}"""
+
+    return review_prompt
+
+def format_review_response(task_result: dict, pr_data: dict) -> str:
+    """Format the Goose review response for GitHub."""
+    if task_result["status"] == "completed":
+        review_content = task_result.get("stdout", "").strip()
+
+        if review_content:
+            # Format as a GitHub comment
+            formatted_review = f"""## 🤖 Goose AI Code Review
+
+{review_content}
+
+---
+*This review was generated automatically by Goose AI. Please consider the suggestions and implement improvements as appropriate.*"""
+
+            # Truncate if too long for GitHub comments (max 65536 chars)
+            if len(formatted_review) > 64000:
+                formatted_review = formatted_review[:64000] + "\n\n... (review truncated due to length)"
+
+            return formatted_review
+        else:
+            return "🤖 Goose AI Review: No output generated"
+
+    elif task_result["status"] == "failed":
+        error = task_result.get("error", "Unknown error")
+        return f"❌ Review failed: {error}"
+
+    elif task_result["status"] == "timeout":
+        return "⏰ Review timed out. The analysis took too long to complete."
+
+    else:
+        return f"❓ Unknown review status: {task_result.get('status', 'unknown')}"
+
+@app.route("/webhook", method="POST")
+def handle_github_webhook():
+    """Handle incoming GitHub webhooks."""
+    try:
+        # Verify webhook signature
+        if not verify_github_webhook():
+            abort(401, "Invalid webhook signature")
+
+        # Parse the webhook payload
+        event_data = request.json
+        event_type = request.headers.get('X-GitHub-Event', '')
+
+        # Only process pull request events
+        if event_type != "pull_request":
+            response.status = 200
+            return {"ok": True, "ignored": f"Event type: {event_type}"}
+
+        # Check the action (opened, synchronize, etc.)
+        action = event_data.get("action")
+        if action not in ["opened", "synchronize", "reopened"]:
+            response.status = 200
+            return {"ok": True, "ignored": f"PR action: {action}"}
+
+        pr = event_data.get("pull_request", {})
+        pr_number = pr.get("number")
+        repo = event_data.get("repository", {})
+        repo_name = repo.get("full_name", "")
+
+        print(f"Processing PR review: {repo_name}#{pr_number} ({action})")
+
+        # Format the review request
+        review_request = format_pr_review_request(event_data)
+
+        # Submit to Goose for review
+        try:
+            task_id = submit_goose_task(review_request)
+            print(f"Submitted PR review task {task_id}")
+
+            # Wait for completion (this may take time for large PRs)
+            result = wait_for_task_completion(task_id)
+
+            # Format and post the review
+            review_comment = format_review_response(result, event_data)
+            post_github_review(repo_name, pr_number, review_comment)
+
+            response.status = 200
+            return {"ok": True, "task_id": task_id}
+
+        except Exception as e:
+            error_msg = f"Failed to process PR review: {str(e)}"
+            print(error_msg)
+
+            # Still try to post an error comment
+            error_comment = f"❌ Failed to generate AI review: {str(e)}"
+            post_github_review(repo_name, pr_number, error_comment)
+
+            response.status = 500
+            return {"error": error_msg}
+
+    except Exception as e:
+        print(f"Error handling GitHub webhook: {str(e)}")
+        response.status = 500
+        return {"error": "Internal server error"}
+
+@app.route("/health", method="GET")
+def health_check():
+    """Health check endpoint."""
+    response.content_type = 'application/json'
+    return {"status": "ok", "service": "github-pr-reviewer"}
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "4000"))  # Different default port
+    print(f"GitHub PR Reviewer starting on port {port}")
+    print(f"Goose server URL: {GOOSE_SERVER_URL}")
+    print("Configure GitHub webhook to: /webhook")
+    if not GITHUB_WEBHOOK_SECRET:
+        print("⚠️  WARNING: GITHUB_WEBHOOK_SECRET not set - webhook verification disabled")
+    if not GITHUB_TOKEN:
+        print("⚠️  WARNING: GITHUB_TOKEN not set - will not post reviews to GitHub")
+
+    from bottle import run
+    run(app, host="0.0.0.0", port=port, debug=False)

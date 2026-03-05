@@ -6,8 +6,8 @@ This script allows submitting tasks either from command-line text or from a file
 It can optionally wait for task completion and display final results.
 
 Usage:
-    python goose_task.py --task "Write a hello world program"
-    python goose_task.py --task-file tasks/hello.txt --wait
+    python src/goose_task.py --task "Write a hello world program"
+    python src/goose_task.py --task-file tasks/hello.txt --wait
 """
 
 import argparse

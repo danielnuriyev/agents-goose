@@ -77,8 +77,8 @@ def run_task(task_id: str) -> None:
         task["error"] = None
 
     # Create a temporary config directory for isolated Goose configuration
-    script_dir = Path(__file__).parent
-    project_config = script_dir / "goose_config.yaml"
+    script_dir = Path(__file__).parent.parent
+    project_config = script_dir / "config" / "goose_config.yaml"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_config_dir = Path(tmpdir)

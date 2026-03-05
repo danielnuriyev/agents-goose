@@ -88,7 +88,7 @@ mkdir -p "${SCRIPT_DIR}/.logs"
 
 # Start LiteLLM proxy in background
 echo "Starting LiteLLM proxy on port 4321..."
-litellm --config "${SCRIPT_DIR}/litellm_config.yaml" --port 4321 > "${SCRIPT_DIR}/.logs/litellm.log" 2>&1 &
+litellm --config "${SCRIPT_DIR}/config/litellm_config.yaml" --port 4321 > "${SCRIPT_DIR}/.logs/litellm.log" 2>&1 &
 LITELLM_PID=$!
 
 # Wait a moment for LiteLLM to start
@@ -96,7 +96,7 @@ sleep 3
 
 # Start Goose task server in background
 echo "Starting Goose task server on port 8765..."
-python "${SCRIPT_DIR}/goose_server.py" > "${SCRIPT_DIR}/.logs/goose_server.log" 2>&1 &
+python "${SCRIPT_DIR}/src/goose_server.py" > "${SCRIPT_DIR}/.logs/goose_server.log" 2>&1 &
 GOOSE_PID=$!
 
 # Wait a moment for services to fully start

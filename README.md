@@ -8,22 +8,32 @@ Goals:
 
 ## Files
 
-- `setup.sh` - install and configure everything
-- `start_server.sh` - start both LiteLLM proxy and Goose task server
-- `stop_server.sh` - stop both LiteLLM proxy and Goose task server
-- `start_prompt.sh` - interactive prompt for submitting tasks
-- `start_slack.sh` - start Slack middleware server for slash command integration
-- `slack_server.py` - Bottle middleware server bridging Slack to Goose tasks
-- `litellm_config.yaml` - LiteLLM model mapping.
-- `goose_config.yaml` - Local Goose configuration for the task server
-- `goose_task.py` - CLI script to submit tasks and optionally wait for completion
+- `scripts/setup.sh` - install and configure everything
+- `scripts/start_server.sh` - start both LiteLLM proxy and Goose task server
+- `scripts/stop_server.sh` - stop both LiteLLM proxy and Goose task server
+- `scripts/start_prompt.sh` - interactive prompt for submitting tasks
+- `src/` - Python source code directory
+  - `slack_server.py` - Bottle middleware server for Slack slash commands (/goose)
+  - `slack_events.py` - Bottle server for Slack Event Subscriptions (@mentions, messages)
+  - `github_pr_reviewer.py` - Bottle server for GitHub PR webhook reviews
+  - `goose_server.py` - HTTP server for Goose task management
+  - `goose_client.py` - Python client for the Goose server API
+  - `goose_task.py` - CLI script to submit tasks and optionally wait for completion
+- `scripts/start_slack_server.sh` - start Slack middleware server for slash commands (/goose)
+- `scripts/start_slack_events.sh` - start Slack Events Handler for @mention integration
+- `scripts/start_github_reviewer.sh` - start GitHub PR Reviewer for automated code reviews
+- `config/` - Configuration files directory
+  - `litellm_config.yaml` - LiteLLM model mapping
+  - `goose_config.yaml` - Local Goose configuration for the task server
+- `prompts/` - Prompt templates directory
+  - `github_pr_reviewer.md` - Review guidelines template for GitHub PR reviews
 
 ## 1) Setup
 
 ```bash
 cd agents-goose
 chmod +x setup.sh
-./setup.sh
+./scripts/setup.sh
 ```
 
 If needed, configure AWS credentials:
@@ -40,7 +50,7 @@ I haven't played with the other major clouds yet.
 
 ```bash
 cd agents-goose
-./start_server.sh
+./scripts/start_server.sh
 ```
 
 This script will automatically:
@@ -61,16 +71,16 @@ AWS credential behavior:
 
 #### Examples:
 ```bash
-./start_server.sh              # Start/restart services (default)
-./start_server.sh --restart    # Same as default
-./start_server.sh --no-restart # Only start if not running
+./scripts/start_server.sh              # Start/restart services (default)
+./scripts/start_server.sh --restart    # Same as default
+./scripts/start_server.sh --no-restart # Only start if not running
 ```
 
 ### Stopping services
 
 ```bash
 cd agents-goose
-./stop_server.sh
+./scripts/stop_server.sh
 ```
 
 This script will:
@@ -82,7 +92,7 @@ This script will:
 
 ```bash
 cd agents-goose
-./start_prompt.sh
+./scripts/start_prompt.sh
 ```
 
 This starts an interactive session where you can submit tasks without leaving the terminal:
@@ -104,7 +114,7 @@ Available commands:
 
 ```bash
 cd agents-goose
-./start_slack.sh
+./scripts/start_slack_server.sh
 ```
 
 This starts a middleware server that bridges Slack slash commands to Goose tasks.
@@ -114,8 +124,8 @@ The server uses Bottle (a lightweight WSGI micro-framework) for minimal dependen
 
 1. **Start the Slack server:**
    ```bash
-   ./start_slack.sh              # Start on port 3000 (default)
-   ./start_slack.sh --port 8080  # Start on custom port
+   ./scripts/start_slack_server.sh              # Start on port 3000 (default)
+   ./scripts/start_slack_server.sh --port 8080  # Start on custom port
    ```
 
 2. **Expose the server publicly:**
@@ -159,13 +169,182 @@ The bot will:
 #### Environment variables:
 
 - `SLACK_SIGNING_SECRET`: For request verification (recommended for production)
-- `GOOSE_SERVER_URL`: URL of goose_server.py (default: `http://localhost:8765`)
+- `GOOSE_SERVER_URL`: URL of src/goose_server.py (default: `http://localhost:8765`)
 
 #### Troubleshooting:
 
-- Ensure `./start_server.sh` is running first (starts Goose and LiteLLM)
+- Ensure `./scripts/start_server.sh` is running first (starts Goose and LiteLLM)
 - Check logs: `tail -f .logs/slack_server.log`
 - Use `lsof -ti:3000 | xargs kill -9` to stop the Slack server
+
+### Slack Events (Alternative to Slash Commands)
+
+For a more interactive experience, you can set up Slack Event Subscriptions to allow users to mention the bot directly (@GooseBot) instead of using slash commands.
+
+```bash
+cd agents-goose
+./scripts/start_slack_events.sh
+```
+
+This starts the events handler server that responds to @mentions and direct messages.
+
+#### Setup steps:
+
+1. **Start the events server:**
+   ```bash
+   ./scripts/start_slack_events.sh              # Start on port 3001 (default)
+   ./scripts/start_slack_events.sh --port 8080  # Start on custom port
+   ```
+
+2. **Expose the server publicly:**
+   ```bash
+   # Install ngrok and expose the events endpoint
+   ngrok http 3001
+   ```
+   Copy the ngrok URL (e.g., `https://def456.ngrok.io`)
+
+3. **Configure Event Subscriptions:**
+   - In your Slack App, go to "Event Subscriptions"
+   - Enable Events
+   - Set Request URL: `https://your-ngrok-url.ngrok.io/events`
+   - Subscribe to bot events:
+     - `app_mention` - When someone mentions @YourBotName
+     - `message.im` - Direct messages to the bot (optional)
+
+4. **Add Bot Token Scope:**
+   - Go to "OAuth & Permissions" → "Scopes"
+   - Add `chat:write` scope (to allow the bot to respond)
+   - Reinstall the app to your workspace
+
+#### Usage:
+
+Users can now interact with the bot by mentioning it:
+
+```
+@GooseBot write a Python function to reverse a string
+@GooseBot fix this bug: my function returns None
+@GooseBot create a test file for my calculator class
+```
+
+**Advantages over slash commands:**
+- More conversational (users can mention the bot naturally)
+- Works in threads and conversations
+- Supports direct messages
+- Multiple interactions in the same channel
+
+#### Environment variables:
+
+- `SLACK_SIGNING_SECRET`: **Required** for request verification
+- `SLACK_BOT_TOKEN`: **Required** for sending responses back to Slack
+- `GOOSE_SERVER_URL`: URL of src/goose_server.py (default: `http://localhost:8765`)
+
+#### Comparison:
+
+| Feature | Slash Commands (/goose) | Event Subscriptions (@Bot) |
+|---------|------------------------|---------------------------|
+| **Setup complexity** | Simple | More complex (needs bot token) |
+| **User experience** | Commands in any channel | Natural mentions, DMs |
+| **Verification** | Optional | Required |
+| **Response capability** | Via response_url | Via Web API (needs token) |
+| **Cost** | Free | Free |
+| **Best for** | Quick commands | Interactive conversations |
+
+### GitHub PR Reviews (Automated Code Reviews)
+
+For automated code review integration, you can set up GitHub webhooks to automatically review pull requests using Goose AI.
+
+```bash
+cd agents-goose
+./scripts/start_github_reviewer.sh
+```
+
+This starts a webhook server that automatically reviews PRs when they are opened or updated.
+
+#### Setup steps:
+
+1. **Start the GitHub reviewer:**
+   ```bash
+   ./scripts/start_github_reviewer.sh              # Start on port 4000 (default)
+   ./scripts/start_github_reviewer.sh --port 8080  # Start on custom port
+   ```
+
+2. **Expose the server publicly:**
+   ```bash
+   # Install ngrok and expose the webhook endpoint
+   ngrok http 4000
+   ```
+   Copy the ngrok URL (e.g., `https://ghi789.ngrok.io`)
+
+3. **Create a GitHub Personal Access Token:**
+   - Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
+   - Generate a new token with `repo` scope (for private repos) or `public_repo` (for public repos)
+   - Copy the token
+
+4. **Set up GitHub Webhook:**
+   - Go to your repository **Settings → Webhooks**
+   - Click **"Add webhook"**
+   - **Payload URL:** `https://your-ngrok-url.ngrok.io/webhook`
+   - **Content type:** `application/json`
+   - **Secret:** Choose a webhook secret (save this for env var)
+   - **Events:** Select "Pull requests"
+   - Click **"Add webhook"**
+
+5. **Set Environment Variables:**
+   ```bash
+   export GITHUB_WEBHOOK_SECRET="your-webhook-secret"
+   export GITHUB_TOKEN="ghp_your_github_token"
+   ```
+
+#### How it works:
+
+When a PR is opened or updated, the webhook:
+1. **Receives** the PR event from GitHub
+2. **Fetches** the PR diff and details from GitHub API
+3. **Submits** a comprehensive review request to Goose
+4. **Posts** the AI-generated review back as a comment on the PR
+
+#### Review Features:
+
+- **Code Quality Analysis** - Identifies bugs, security issues, and best practices
+- **Style & Documentation** - Reviews code style and documentation completeness
+- **Error Handling** - Checks for proper error handling and edge cases
+- **Performance Suggestions** - Identifies potential optimizations
+- **Constructive Feedback** - Provides helpful, actionable suggestions
+
+#### Example Review Output:
+
+```
+## 🤖 Goose AI Code Review
+
+### Code Quality
+- The error handling in `process_data()` could be more specific
+- Consider adding input validation for the `user_id` parameter
+
+### Security Considerations
+- Potential SQL injection vulnerability in query construction
+- Consider using parameterized queries
+
+### Suggestions
+- Add docstrings to all public functions
+- Consider breaking down `complex_function()` into smaller, focused methods
+
+---
+*This review was generated automatically by Goose AI. Please consider the suggestions and implement improvements as appropriate.*
+```
+
+#### Environment variables:
+
+- `GITHUB_WEBHOOK_SECRET`: **Required** - For webhook signature verification
+- `GITHUB_TOKEN`: **Required** - For posting reviews and fetching PR data
+- `GOOSE_SERVER_URL`: URL of src/goose_server.py (default: `http://localhost:8765`)
+
+#### Troubleshooting:
+
+- Ensure `./scripts/start_server.sh` is running first
+- Check logs: `tail -f .logs/github_reviewer.log`
+- Verify webhook secret matches the environment variable
+- Test webhook delivery in GitHub repository settings
+- Use `lsof -ti:4000 | xargs kill -9` to stop the reviewer
 
 ### Option 2: Manual startup
 
@@ -174,13 +353,13 @@ The bot will:
 ```bash
 cd agents-goose
 source .venv/bin/activate
-python goose_task.py --task "Write a hello world program in Python" --wait
+python src/goose_task.py --task "Write a hello world program in Python" --wait
 ```
 
 You can optionally specify a different model (defaults to `bedrock-claude-opus-4-6`):
 
 ```bash
-python goose_task.py --task "Write a hello world program" --model bedrock-claude-opus-4-6 --wait
+python src/goose_task.py --task "Write a hello world program" --model bedrock-claude-opus-4-6 --wait
 ```
 
 It submits the task, waits for completion, and shows the final status and output.

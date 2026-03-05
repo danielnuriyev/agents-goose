@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Environment Variables:"
             echo "  SLACK_SIGNING_SECRET    For request verification (recommended)"
-            echo "  GOOSE_SERVER_URL        URL of goose_server.py (default: http://localhost:8765)"
+            echo "  GOOSE_SERVER_URL        URL of src/goose_server.py (default: http://localhost:8765)"
             echo ""
             echo "Examples:"
             echo "  $0                           # Start server (restart if running)"
@@ -84,7 +84,7 @@ fi
 echo "Checking if Goose task server is running..."
 if ! curl -s "http://localhost:8765/health" >/dev/null 2>&1; then
     echo "❌ Goose task server is not running on http://localhost:8765"
-    echo "💡 Start Goose services first with: ./start_server.sh"
+    echo "💡 Start Goose services first with: ./scripts/start_server.sh"
     exit 1
 fi
 echo "✅ Goose task server is running."
@@ -101,7 +101,7 @@ mkdir -p "${SCRIPT_DIR}/.logs"
 
 # Start Slack middleware server in background
 echo "Starting Slack middleware server on port ${SLACK_PORT}..."
-PORT="${SLACK_PORT}" python "${SCRIPT_DIR}/slack_server.py" > "${SCRIPT_DIR}/.logs/slack_server.log" 2>&1 &
+PORT="${SLACK_PORT}" python "${SCRIPT_DIR}/src/slack_server.py" > "${SCRIPT_DIR}/.logs/slack_server.log" 2>&1 &
 SLACK_PID=$!
 
 # Wait a moment for server to start

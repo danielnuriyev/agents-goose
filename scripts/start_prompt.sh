@@ -22,13 +22,13 @@ source "${SCRIPT_DIR}/.venv/bin/activate"
 echo -e "${BLUE}Checking if Goose services are running...${NC}"
 if ! curl -s http://localhost:8765/health >/dev/null 2>&1; then
     echo -e "${RED}❌ Goose task server is not running on http://localhost:8765${NC}"
-    echo -e "${YELLOW}💡 Start services first with: ./start_server.sh${NC}"
+    echo -e "${YELLOW}💡 Start services first with: ./scripts/start_server.sh${NC}"
     exit 1
 fi
 
 if ! curl -s http://localhost:4321/health >/dev/null 2>&1; then
     echo -e "${RED}❌ LiteLLM proxy is not running on http://localhost:4321${NC}"
-    echo -e "${YELLOW}💡 Start services first with: ./start_server.sh${NC}"
+    echo -e "${YELLOW}💡 Start services first with: ./scripts/start_server.sh${NC}"
     exit 1
 fi
 
@@ -81,7 +81,7 @@ while true; do
                     continue
                 fi
                 echo -e "${YELLOW}📄 Submitting task from file: $args${NC}"
-                python "${SCRIPT_DIR}/goose_task.py" --task-file "$expanded_path" --wait
+                python "${SCRIPT_DIR}/src/goose_task.py" --task-file "$expanded_path" --wait
             else
                 # It's direct text (should be quoted)
                 if [[ "$args" != \"*\" ]]; then
@@ -91,7 +91,7 @@ while true; do
                 # Remove surrounding quotes
                 task_text=$(echo "$args" | sed 's/^"\(.*\)"$/\1/')
                 echo -e "${YELLOW}💬 Submitting task: $task_text${NC}"
-                python "${SCRIPT_DIR}/goose_task.py" --task "$task_text" --wait
+                python "${SCRIPT_DIR}/src/goose_task.py" --task "$task_text" --wait
             fi
             echo ""
             ;;

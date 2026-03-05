@@ -3,7 +3,7 @@
 Slack middleware server for Goose task management.
 
 This server acts as a bridge between Slack and the Goose task server.
-It receives Slack commands, submits tasks to goose_server.py, and sends
+It receives Slack commands, submits tasks to src/goose_server.py, and sends
 results back to Slack channels.
 
 Slack Integration Setup:
@@ -17,7 +17,7 @@ API Endpoints:
 
 Environment Variables:
 - SLACK_SIGNING_SECRET: For request verification (optional but recommended)
-- GOOSE_SERVER_URL: URL of goose_server.py (default: http://localhost:8765)
+- GOOSE_SERVER_URL: URL of src/goose_server.py (default: http://localhost:8765)
 """
 
 import json
